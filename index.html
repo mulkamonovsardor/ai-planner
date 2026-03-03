@@ -909,6 +909,57 @@ body::after{
   .fab{bottom:calc(66px + env(safe-area-inset-bottom));right:12px;width:48px;height:48px}
 }
 
+/* ═══ AUTH MODAL ═══ */
+.auth-modal-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(8px);z-index:1000;
+  align-items:center;justify-content:center;
+}
+.auth-modal-overlay.open{display:flex}
+.auth-modal{
+  background:var(--bg2);border:1px solid var(--glass-border);
+  border-radius:20px;padding:28px;width:360px;max-width:calc(100vw - 32px);
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+}
+.auth-modal h2{font-size:20px;font-weight:700;margin-bottom:4px}
+.auth-modal p{font-size:13px;color:var(--text3);margin-bottom:20px}
+.auth-tabs{display:flex;gap:4px;margin-bottom:20px;background:var(--bg3);border-radius:10px;padding:3px}
+.auth-tab{flex:1;padding:7px;border:none;background:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text3);transition:all .2s}
+.auth-tab.active{background:var(--primary);color:white}
+.auth-input{width:100%;background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;margin-bottom:10px;box-sizing:border-box;transition:border-color .2s;font-family:inherit}
+.auth-input:focus{outline:none;border-color:var(--primary)}
+.auth-or{text-align:center;color:var(--text3);font-size:12px;margin:12px 0;position:relative}
+.auth-or::before,.auth-or::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:var(--border)}
+.auth-or::before{left:0}.auth-or::after{right:0}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;background:white;color:#333;border:none;border-radius:10px;padding:10px;cursor:pointer;font-size:13px;font-weight:600;transition:opacity .2s}
+.google-btn:hover{opacity:0.9}
+.google-btn svg{width:18px;height:18px}
+
+/* Auth button in topbar */
+.auth-btn{
+  display:flex;align-items:center;gap:6px;
+  background:var(--bg3);border:1px solid var(--border2);
+  border-radius:10px;padding:5px 10px;cursor:pointer;
+  font-size:12px;font-weight:600;color:var(--text2);
+  transition:all .2s;white-space:nowrap;
+}
+.auth-btn:hover{border-color:var(--primary);color:var(--primary)}
+
+/* Profile modal */
+.profile-modal{
+  background:var(--bg2);border:1px solid var(--glass-border);
+  border-radius:20px;padding:24px;width:320px;max-width:calc(100vw - 32px);
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+}
+.profile-avatar-big{
+  width:64px;height:64px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),#818CF8);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;font-weight:700;color:white;margin:0 auto 12px;
+  overflow:hidden;
+}
+.profile-avatar-big img{width:100%;height:100%;object-fit:cover}
+
 /* Safe area for iPhone X+ */
 @supports(padding: max(0px)){
   .mob-nav{padding-bottom:max(8px, env(safe-area-inset-bottom))}
@@ -916,6 +967,8 @@ body::after{
 }
 
 </style>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
@@ -976,6 +1029,8 @@ body::after{
       <span id="qs-prayer" style="font-size:11px;color:var(--text3);background:var(--glass);border:1px solid var(--glass-border);padding:3px 9px;border-radius:20px;display:flex;align-items:center;gap:4px;font-family:'JetBrains Mono',monospace"></span>
     </div>
     <div class="topbar-right">
+      <div id="auth-avatar" style="cursor:pointer" onclick="currentUser?showProfileModal():showAuthModal()"></div>
+      <button class="auth-btn" id="auth-btn" onclick="showAuthModal()">Kirish</button>
       <button class="notif-btn" id="notif-btn" onclick="toggleNotifications()" title="Push bildirishnomalar">
         🔔<span class="notif-dot" id="notif-dot"></span>
       </button>
@@ -1328,14 +1383,249 @@ body::after{
 <button class="fab" id="fab-btn" onclick="go('tasks');setTimeout(()=>trigAdd(),100)">
   <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
 </button>
+<!-- AUTH MODAL -->
+<div class="auth-modal-overlay" id="auth-modal">
+  <div class="auth-modal">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <div>
+        <h2>AI Planner</h2>
+        <p>Hisobingizga kiring yoki yangi hisob oching</p>
+      </div>
+      <button onclick="hideAuthModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">✕</button>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-signin" onclick="switchTab('signin')">Kirish</button>
+      <button class="auth-tab" id="tab-signup" onclick="switchTab('signup')">Ro'yxat</button>
+    </div>
+    <div id="auth-name-wrap" style="display:none">
+      <input class="auth-input" id="auth-name" placeholder="Ismingiz" type="text">
+    </div>
+    <input class="auth-input" id="auth-email" placeholder="Email" type="email">
+    <input class="auth-input" id="auth-pass" placeholder="Parol (min 6 belgi)" type="password" onkeydown="if(event.key==='Enter')authSubmit()">
+    <button class="btn btn-p" id="auth-submit" onclick="authSubmit()" style="width:100%;margin-bottom:12px">Kirish</button>
+    <div class="auth-or">yoki</div>
+    <button class="google-btn" onclick="signInGoogle()" style="margin-top:12px">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Google bilan kirish
+    </button>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="auth-modal-overlay" id="profile-modal">
+  <div class="profile-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700">Profil</div>
+      <button onclick="hideProfileModal()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text3)">✕</button>
+    </div>
+    <div class="profile-avatar-big" id="profile-avatar-big"></div>
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text3)" id="profile-email-show"></div>
+    </div>
+    <input class="auth-input" id="profile-name-input" placeholder="Ismingiz" type="text">
+    <button class="btn btn-p" onclick="updateProfile()" style="width:100%;margin-bottom:10px">✅ Saqlash</button>
+    <button class="btn btn-d" onclick="signOut()" style="width:100%">👋 Chiqish</button>
+  </div>
+</div>
+
 <div id="toasts"></div>
 
 <script>
 const SK='aip_v3';
+
+// ═══════════════════════════════════════════
+// 🔐 SUPABASE CONFIG — O'z kalitingizni qo'ying
+// ═══════════════════════════════════════════
+const SUPA_URL = 'https://bkpikrsmmwcsetbwmden.supabase.co';
+const SUPA_KEY = 'sb_publishable_t89dR55YRAp8TmrU21ECUw_XZQz_0_n';
+
+let supa = null;
+let currentUser = null;
+
+function initSupabase(){
+  if(SUPA_URL === 'YOUR_SUPABASE_URL') return; // Not configured yet
+  try {
+    supa = supabase.createClient(SUPA_URL, SUPA_KEY);
+    checkAuth();
+  } catch(e) {
+    console.log('Supabase init error:', e);
+  }
+}
+
+async function checkAuth(){
+  if(!supa) return;
+  const { data: { session } } = await supa.auth.getSession();
+  if(session) {
+    currentUser = session.user;
+    await loadFromCloud();
+    renderAuthUI();
+  } else {
+    renderAuthUI();
+  }
+  // Listen for auth changes
+  supa.auth.onAuthStateChange(async (event, session) => {
+    if(event === 'SIGNED_IN') {
+      currentUser = session.user;
+      await loadFromCloud();
+      renderAuthUI();
+      renderDash();
+      toast('✅ Xush kelibsiz!');
+    } else if(event === 'SIGNED_OUT') {
+      currentUser = null;
+      renderAuthUI();
+      toast('👋 Chiqildi', 'inf');
+    }
+  });
+}
+
+// ═══ AUTH UI ═══
+function renderAuthUI(){
+  const btn = document.getElementById('auth-btn');
+  const avatar = document.getElementById('auth-avatar');
+  if(!btn) return;
+  if(currentUser) {
+    const name = currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Foydalanuvchi';
+    const av = currentUser.user_metadata?.avatar_url;
+    btn.textContent = name;
+    btn.onclick = showProfileModal;
+    if(avatar) {
+      avatar.style.display = 'flex';
+      avatar.innerHTML = av 
+        ? `<img src="${av}" style="width:32px;height:32px;border-radius:50%;object-fit:cover">` 
+        : `<div style="width:32px;height:32px;border-radius:50%;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">${name[0].toUpperCase()}</div>`;
+    }
+  } else {
+    btn.textContent = "Kirish";
+    btn.onclick = showAuthModal;
+    if(avatar) avatar.innerHTML = '';
+  }
+}
+
+function showAuthModal(){
+  const m = document.getElementById('auth-modal');
+  if(m) m.classList.add('open');
+}
+
+function hideAuthModal(){
+  const m = document.getElementById('auth-modal');
+  if(m) m.classList.remove('open');
+}
+
+async function signUp(){
+  if(!supa){ toast('Supabase sozlanmagan','err'); return; }
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  const name = document.getElementById('auth-name').value.trim();
+  if(!email||!pass||!name){ toast("Barcha maydonlarni to'ldiring",'err'); return; }
+  const btn = document.getElementById('auth-submit');
+  btn.textContent = 'Yuklanmoqda...'; btn.disabled = true;
+  const { error } = await supa.auth.signUp({ 
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
+  btn.disabled = false;
+  if(error){ toast(error.message,'err'); btn.textContent = "Ro'yxatdan o'tish"; return; }
+  toast('📧 Email tasdiqlang!', 'inf');
+  hideAuthModal();
+}
+
+async function signIn(){
+  if(!supa){ toast('Supabase sozlanmagan','err'); return; }
+  const email = document.getElementById('auth-email').value.trim();
+  const pass = document.getElementById('auth-pass').value;
+  if(!email||!pass){ toast('Email va parol kiriting','err'); return; }
+  const btn = document.getElementById('auth-submit');
+  btn.textContent = 'Kirish...'; btn.disabled = true;
+  const { error } = await supa.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false;
+  if(error){ toast("Email yoki parol noto'g'ri",'err'); btn.textContent = "Kirish"; return; }
+  hideAuthModal();
+}
+
+async function signInGoogle(){
+  if(!supa){ toast('Supabase sozlanmagan','err'); return; }
+  await supa.auth.signInWithOAuth({ 
+    provider: 'google',
+    options: { redirectTo: window.location.origin }
+  });
+}
+
+async function signOut(){
+  if(!supa) return;
+  await supa.auth.signOut();
+  hideProfileModal();
+}
+
+function showProfileModal(){
+  const m = document.getElementById('profile-modal');
+  if(m) {
+    m.classList.add('open');
+    // Fill current data
+    const name = currentUser?.user_metadata?.full_name || '';
+    const nameEl = document.getElementById('profile-name-input');
+    if(nameEl) nameEl.value = name;
+  }
+}
+
+function hideProfileModal(){
+  const m = document.getElementById('profile-modal');
+  if(m) m.classList.remove('open');
+}
+
+async function updateProfile(){
+  if(!supa||!currentUser) return;
+  const name = document.getElementById('profile-name-input').value.trim();
+  if(!name){ toast('Ism kiriting','err'); return; }
+  const { error } = await supa.auth.updateUser({ data: { full_name: name } });
+  if(error){ toast(error.message,'err'); return; }
+  // Update profiles table
+  await supa.from('profiles').upsert({ id: currentUser.id, name });
+  toast('✅ Profil yangilandi');
+  renderAuthUI();
+  hideProfileModal();
+}
+
+// ═══ CLOUD SYNC ═══
+async function saveToCloud(){
+  if(!supa||!currentUser) return;
+  try {
+    await supa.from('user_data').upsert({
+      id: currentUser.id,
+      tasks: S.tasks,
+      habits: S.habits,
+      notes: S.notes,
+      prayer: S.prayer,
+      updated_at: new Date().toISOString()
+    });
+  } catch(e) { console.log('Cloud save error:', e); }
+}
+
+async function loadFromCloud(){
+  if(!supa||!currentUser) return;
+  try {
+    const { data } = await supa.from('user_data').select('*').eq('id', currentUser.id).single();
+    if(data) {
+      S.tasks = data.tasks || [];
+      S.habits = data.habits || [];
+      S.notes = data.notes || [];
+      S.prayer = data.prayer || { region: 'Toshkent', completions: {} };
+      save(); // Also save locally
+    }
+    // Load profile
+    const { data: profile } = await supa.from('profiles').select('*').eq('id', currentUser.id).single();
+    if(profile && profile.name) {
+      S.profile = { ...S.profile, name: profile.name };
+      save();
+    }
+  } catch(e) { console.log('Cloud load error:', e); }
+}
 let S={ver:'3',profile:{name:'',av:''},tasks:[],habits:[],notes:[],prayer:{region:'Toshkent',completions:{}}};
 let view='dashboard',tFilter='all',editId=null,noteId=null,actTags=[],pTimes=null,pCdi=null,calDate=new Date();
 
-function save(){try{localStorage.setItem(SK,JSON.stringify(S))}catch(e){}}
+function save(){
+  try{localStorage.setItem(SK,JSON.stringify(S))}catch(e){}
+  if(currentUser) saveToCloud();
+}
 function load(){
   try{
     const r=localStorage.getItem(SK);if(!r)return;
@@ -2963,6 +3253,7 @@ window.renderPC=function(){
 
 // Initial calls
 setTimeout(()=>{initAISuggest();updQuickStats();},500);
+initSupabase();
 
 
 
